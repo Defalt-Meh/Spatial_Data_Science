@@ -1,4 +1,4 @@
-# setwd("/Users/mehmetaltunoren/Desktop/HMW2_data")
+# setwd("/Users/.../Desktop/data")
 
 
 if (!require("pacman")) install.packages("pacman")
