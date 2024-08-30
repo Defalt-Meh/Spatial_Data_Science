@@ -1,4 +1,4 @@
-# setwd("/Users/.../Desktop/data")
+# setwd("/Users/.../Desktop/data") -> Manual path 
 
 
 if (!require("pacman")) install.packages("pacman")
