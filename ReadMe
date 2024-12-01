@@ -1,4 +1,4 @@
-# Spatial Data Science with R: A Journey Through the Data Desert
+## Spatial Data Science with R: A Journey Through the Data Desert
 
 Welcome, brave data traveler, to the mystical world of Spatial Data Science with R! In this repository, you'll embark on an epic journey reminiscent of the legendary sands of Dune.
 
