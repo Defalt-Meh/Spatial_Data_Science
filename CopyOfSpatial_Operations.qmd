@@ -1,0 +1,1232 @@
+---
+title: "Spatial Operations"
+format: pdf
+editor: visual
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,collapse=TRUE)
+```
+
+```{r}
+
+library(sf)      # vector data package
+library(terra)   # raster data package
+library(tidyverse)   # tidyverse package for data frame manipulation
+library(spData)  # loads datasets used here
+library(here)
+```
+
+-   We will use the following datasets.
+
+```{r}
+elev = rast(system.file("raster/elev.tif", package = "spData"))
+grain = rast(system.file("raster/grain.tif", package = "spData"))
+```
+
+# Introduction
+
+<div>
+
+There are three tasks that we will cover today
+
+1.  [**Spatial filtering**]{style="color:magenta"}
+
+    <div>
+
+    -   With spatial queries like: Does it intersects?
+
+    </div>
+
+2.  [**Spatial Joins**]{style="color:magenta"}
+
+    <div>
+
+    -   Spatial joins between vector datasets
+
+    </div>
+
+3.  [**Aggregation.**]{style="color:magenta"}
+
+    <div>
+
+    -   Grouping by geometry
+
+    </div>
+
+</div>
+
+![](TopologicSpatialRelarions2.png)
+
+<div>
+
+**There is a link between attribute operations and spatial ones:**
+
+-   [**spatial subsetting (or filtering)**]{style="color:red"}: select rows based on geom.
+
+-   [**spatial joining**]{style="color:red"}: combine tables based on geom.
+
+-   [**aggregation**]{style="color:red"}: group observation based on geom.
+
+</div>
+
+------------------------------------------------------------------------
+
+<div>
+
+[[**With respect to Rasters**]{.underline}]{style="color:darkgreen"}
+
+-   Spatial operations on raster objects:
+
+    -   include **subsetting** and **merging** several raster 'tiles' into a single object.
+
+-   Map algebra:
+
+    -   **operations that modify raster cell values**
+
+        -   with or without reference to surrounding cell values.
+
+-   We will also **compute distance**s within rasters.
+
+-   [***Note that to apply any function on two spatial objects, the latter most share the same CRS!***]{style="color:blue"}
+
+</div>
+
+------------------------------------------------------------------------
+
+## [Vector data: filtering]{style="color:blue"}
+
+<div>
+
+-   **Goal:** reshape an existing object in reference to another object.
+
+-   Subsets of `sf` data frames can be created with **square bracket (\[)** operator.
+
+    -   Syntax **`x[y, , op = st_intersects]`**, where `x` is an `sf` object from which[**a subset of rows will be returned**]{style="color:purple"}.
+    -   `y` is the [*'subsetting object'*]{.underline} `op = st_intersects` specifies the *topological relation to do the subsetting*.
+
+</div>
+
+<div>
+
+-   The **default** topological relation is [**`st_intersects()`**]{style="color:blue"}
+
+    -   the command x\[y, \] is identical to x\[y, , op = st_intersects\]
+
+-   A version of `filter()` function from the `tidyverse` can also be used.
+
+</div>
+
+[[**DEMONSTRATION**]{.underline}]{style="color:orange"}
+
+-   We consider `nz` and `nz_height` datasets.
+
+    -   contain geographic data on the [**16 main regions and 101 highest points in New Zealand**]{style="color:blue"} (projected CRS).
+
+-   Create an object [**representing Canterbury and return all high points in the region**]{.underline}:
+
+```{r}
+# filter out Canterbury
+
+canterbury = nz %>%
+  
+  filter(Name == "Canterbury")
+
+# subset the high points that "intersect" the above.
+
+canterbury_height = nz_height[canterbury, ]
+
+```
+
+```{r}
+
+library(tmap)
+
+tm_shape(canterbury) + 
+  
+  tm_borders() +
+
+  tm_shape(canterbury_height) + 
+  
+  tm_symbols(shape = 17, col = "blue", size = .2)
+
+
+```
+
+<div>
+
+*SUMMARY*
+
+-   The command `x[y, ]` subsets features of a **target** `x` w.r.t. object `y`.
+
+-   Both `x` and `y` must be geographic objects (`sf`).
+
+------------------------------------------------------------------------
+
+-   Various topological relations for subsetting:
+
+    -   `touches`,
+    -   `crosses` or
+    -   `within` (among others).
+
+-   `st_intersects` is a 'catch all' instruction
+
+    -   [[catches everything that touches, crosses or falls within the source 'subsetting' object]{.underline}]{style="color:blue"}
+
+</div>
+
+<div>
+
+[**FOR ALTERNATIVE SPATIAL OPERATORS**]{.underline}
+
+-   write desired [**`op = argument`**]{style="color:darkgreen"}.
+
+    -   the opposite to st_intersects:
+    -   `nz_height[canterbury, , op = st_disjoint]`
+
+[EXERCISE]{.underline}
+
+-   plot the map of New Zealand and the high points outside Canterbury.
+
+-   Note the **empty argument** , , .
+
+-   The **empty argument** [selects columns]{.underline}:
+
+    -   `nz_height[canterbury, 2, op = st_disjoint]`
+
+-   The above returns the same rows but only includes the [**second attribute column**.]{style="color:blue"}
+
+</div>
+
+<div>
+
+**Topological Operators [[Outputs]{.underline}]{style="color:magenta"}**
+
+-   They return [objects that can be used for subsetting]{.underline}.
+
+-   In the below code, we create an object with `(empty)` and `1`.
+
+    <div>
+
+    -   `empty` indicates no intersection between **the target object** and the **subsetting object**.
+    -   [i]{style="color:orange"}[t is an empty vector with length zero]{style="color:darkorange"}.
+
+    </div>
+
+-   Then we transform the latter into a **logical vector**.
+
+-   Finally we conduct the **subsetting operation**.
+
+</div>
+
+------------------------------------------------------------------------
+
+```{r}
+
+# intersect heights and Canterbury
+
+filter_object = st_intersects(
+  
+  x = nz_height,
+  
+  y = canterbury)
+
+class(filter_object)
+
+filter_object
+
+
+```
+
+------------------------------------------------------------------------
+
+```{r}
+
+# transform this into a logical
+
+# if length>0 T, otherwise F
+
+filter_logical = lengths(filter_object) > 0
+
+# carry out the subsetting
+
+canterbury_height2 = nz_height[filter_logical, ]
+
+
+```
+
+------------------------------------------------------------------------
+
+[[There is an alternative function]{.underline}]{style="color:darkgreen"}
+
+-   `st_filter`: similar to the standard `dplyr`.
+
+```{r}
+
+canterbury_height3 = nz_height %>%
+  
+  st_filter(
+    
+    y = canterbury,
+    
+    .predicate = st_intersects
+    
+    )
+
+```
+
+------------------------------------------------------------------------
+
+# Vector data: spatial relations
+
+-   Sometimes it is important to establish whether two objects are spatially related.
+
+    -   **Topological relations**: [[pin down the existence of a spatial relation]{.underline}]{style="color:blue"}.
+
+-   Symmetric operators:
+
+1.  equals
+2.  intersects
+3.  crosses
+4.  touches
+5.  overlaps
+
+-   Asymmetric operators:
+
+1.  contains
+2.  within
+
+## [**Visualization**]{style="color:blue"}
+
+**EXAMPLE**
+
+1.  First, we create a polygon:
+    -   use `cbind` to generate a **matrix of vertices**.
+
+    -   Next apply `st_sfc` and `st_polygon` to create an `sf`.
+2.  Create a **line** and **group of points**.
+3.  Visually **examine** the **spatial relationships**.
+4.  [**Use the operators to corroborate our visual inspection.**]{style="color:darkgreen"}
+
+[**QUIZ**]{.underline}
+
+```{r}
+
+# The polygon matrix as a list:
+
+# vertices: (0,0), (0,1), (1,1), (1,0.5), (0,0)
+
+polygon_matrix = cbind(
+  
+  x = c(0, 0, 1, 1,   0), # x Coordinate
+  y = c(0, 1, 1, 0.5, 0)  # y Coordinate
+  
+) %>%
+  list()
+
+# create an sf column
+
+polygon_sfc = polygon_matrix %>% 
+  st_polygon() %>% # a polygon sf object 
+  st_sfc() # an sf column    
+
+# plot it using tmap.  
+  
+tmap::tm_shape(polygon_sfc) +
+  tmap::tm_polygons() + 
+  tmap::tm_grid(lines = FALSE)
+
+```
+
+```{r}
+
+# The line matrix:
+
+# coordinates (0.4,0.2),(1,0.5)
+
+# NOTE: the line matrix does not need to be converted to a list!!
+
+line_matrix = cbind(
+  x = c(0.4, 1),
+  y = c(0.2, 0.5))
+
+# Convert it into an sf column
+
+line_sfc = line_matrix %>%
+  st_linestring() %>% 
+  st_sfc()
+
+# create a data frame of points: (0.2,0.1),(0.7,0.2),(0.4,0.8)
+
+(point_df = data.frame(
+  x = c(0.2, 0.7, 0.4),
+  y = c(0.1, 0.2, 0.8)
+)) 
+
+point_sf = point_df %>% 
+  st_as_sf(coords = c("x", "y")) %>% # Notice that here we are converting tings to an sf
+  tibble::rowid_to_column("ID") %>% # let's create an ID column
+  mutate(ID=as.character(ID))       # let's transform the ID into a character
+
+head(point_sf)
+
+```
+
+```{r}
+
+tmap::tm_shape(polygon_sfc) + tmap::tm_polygons() + 
+  tmap::tm_shape(line_sfc) + tmap::tm_lines(scale = 10) +
+  tmap::tm_shape(point_sf) + 
+  tmap::tm_dots(scale=5, legend.show = F,col = "turquoise", alpha = .7, size= .1) +
+  tmap::tm_text("ID", size = .5) +
+  tmap::tm_grid(lines = FALSE)
+
+```
+
+## Spatial Queries
+
+***EXAMPLE***
+
+-   Which of the points in `point_sf` intersect in some way with `polygon_sfc`?
+    -   Use the spatial predicate `st_intersects()` as follows:
+
+```{r}
+
+point_sf
+
+st_intersects(
+  
+  point_sf,
+  polygon_sfc,
+  sparse = FALSE  # sparse=FALSE to coerce the output 
+                  # into a logical vector, instead of a sparse matrix.
+  
+  )
+
+# A sparse matrix is a list of vectors with
+# empty elements where a match doe not exists.
+
+```
+
+-   Which points lie within the polygon?
+-   Which features **are on** [**or**]{style="color:blue"} **contain** a [shared boundary with `y`]{.underline}?
+-   These can be answered as follows:
+
+```{r}
+
+st_within(point_sf, polygon_sfc)
+
+st_touches(point_sf, polygon_sfc)
+
+```
+
+-   The opposite of `st_intersects()` is `st_disjoint()`
+    -   It returns objects that [do not spatially relate in any way to the selecting object]{style="color:blue"}
+
+```{r}
+
+# note [, 1] converts the result into a vector:
+
+st_disjoint(
+  
+  point_sf,
+  polygon_sfc,
+  sparse = FALSE)[, 1]
+
+```
+
+### [Distance-based relations]{style="color:Darkgreen"}
+
+-   `st_is_within_distance()` [detects features within a distance from the target]{style="color:blue"}.
+
+-   [**You can select objects within a distance**]{style="color:darkorange"}
+
+***EXAMPLE***
+
+[Let's select points that are 0.2 units of distance from any point of the polygon.]{.underline}
+
+[This includes vertices and edges.]{.underline}
+
+-   **point 2 lies below the polygon** .
+
+    -   Verify the actual distance between **point 2** and the polygon is 0.13.
+    -   use `st_distance(point_sf, polygon_sfc)`.
+
+-   The **'is within distance'** binary spatial predicate is demonstrated in the code chunk below,
+
+-   Indeed, every point is within 0.2 units of the polygon:
+
+```{r}
+st_is_within_distance(point_sf, polygon_sfc,
+                      dist = 0.2, sparse = FALSE)[, 1]
+```
+
+------------------------------------------------------------------------
+
+## [Vector data: spatial joining]{style="color:darkgreen"}
+
+![](spatial_join.jpg){width="335"}
+
+<div>
+
+-   Joining two **non-spatial** datasets relies on a **shared 'key' variable**
+
+-   [**Spatial data joining**]{style="color:blue"}
+
+    -   same concept drawing **on spatial relations**
+
+    -   it adds new columns to the target object **x**, from a source object **y**.
+
+-   *Example*:
+
+    -   [ten points randomly distributed across the Earth's surface]{style="color:red"}
+    -   [for the points that are on land,]{style="color:green"}
+        -   [which countries are they in?]{style="color:green"}
+
+[**MORE SPECIFICALLY**]{.underline}
+
+-   [Establish the `bbox` for the analysis: "the entire globe"]{style="color:blue"}
+
+-   Create points that are randomly scattered over the Earth's surface.
+
+-   Use [R's]{style="color:blue"} uniform distribution, and make sure the values fall into the `bbox`
+
+-   Set the points as an `sf` object.
+
+</div>
+
+```{r}
+
+# Create Random Points
+
+set.seed(2018)# set seed for reproducibility
+
+world = spData::world
+(bb = st_bbox(world)) # the world's bounds
+
+# create a data frame
+
+random_df = data.frame(
+  
+  x = runif(n = 10, # number of points
+            min = bb[1], # lower bound along the x-axis
+            max = bb[3]),# upper bound along the x-axis
+  
+  y = runif(n = 10,
+            min = bb[2], # lower bound along the y-axis
+            max = bb[4]) # upper bound along the y-axis
+)
+
+head(random_df)
+
+
+random_points = random_df %>% 
+  st_as_sf(coords = c("x", "y")) %>% # set coordinates
+  st_set_crs("EPSG:4326") # set geographic CRS
+
+head(random_points)
+
+```
+
+4.  Now, plot the points on an earth's map.
+
+```{r}
+
+library(tmap)
+
+st_crs(world) <- 4326
+
+tm_shape(world) +
+  tm_borders() +
+  tm_shape(random_points) +
+  tm_symbols(shape = 17, col = "blue", size = .2)
+
+
+```
+
+-   We want the object `world_random` yielding [**only countries that contain random points**]{style="color:red"}
+
+    -   we will obtain it via a **spatial join**.
+
+```{r}
+
+# find the countries "touched" by random points
+
+(world_random = world[random_points,])
+
+# Do the same with st_filter
+
+alternative = st_filter(world,
+                        random_points,
+                        .predicate = st_intersects)
+
+#prove they are identical
+
+identical(world_random,alternative)
+
+```
+
+-   Take the `data_frame` with the random points.
+-   For each random point, find what country it belongs to.
+-   `st_join` is the **crucial** function here.
+
+```{r}
+
+# find the points that touch a country.
+
+random_joined = 
+   st_join(
+     random_points, # the left object
+     select(world,name_long), # the right object
+     join = st_intersects)
+
+random_joined
+```
+
+```{r}
+
+tm_shape(world) +
+  tm_borders() +
+  tm_shape(world_random) + 
+  tm_polygons(col = "name_long") + # This will set a different color to the selected countries
+  tm_shape(random_points) + 
+  tm_symbols(shape = 17, col = "blue", size = .2)
+
+```
+
+[**Over time, `ggplot` may take over `tmap`, so it is a good idea to explore its advantages. In particular, `sf_geom` recognizes the type of geometry you want to plot.**]{style="color:magenta"}
+
+```{r}
+
+# The ggplot way
+
+
+ggplot() +
+  geom_sf(data = world,colour = "black", fill = NA) +
+  geom_sf(data = world_random,aes(fill = name_long),show.legend = T) +
+  geom_sf(data = random_points,col = "blue",shape = 17) +
+  geom_sf_label(data = world_random, aes(label = iso_a2),size=2)
+
+
+
+```
+
+## A few comments on spatial joins.
+
+<div>
+
+-   By default, `st_join()` performs a **left join**
+
+-   ALL ROWS from `x` including rows with no match in `y`.
+
+-   It can also do [**inner joins**]{.underline}
+
+    -   set the [argument left = FALSE]{style="color:blue"}.
+
+</div>
+
+<div>
+
+-   The default topological operator used by `st_join()` is `st_intersects()`
+
+-   [Warning]{.underline}:
+
+    -   When **`x`** [contains polygons]{style="color:blue"}, [each of which]{.underline} match **multiple objects** in **`y`**...
+    -   spatial joins will result in duplicate features,
+        -   creates a new row for each match in y (**see the homework**).
+
+</div>
+
+## Non-overlapping joins
+
+-   [[**Sometimes two geographic datasets do not touch but still have a strong geographic relationship.**]{.underline}]{style="color: orange"}
+-   The datasets `cycle_hire` and `cycle_hire_osm` provide a good example.
+-   [Plotting them shows that they are often closely related but they do not touch.]{style="color:blue"}
+    -   `cycle_hire` offers official data on stations' location.
+
+    -   `cycle_hire_osm` comprises users-reported data on station's location and capacity.
+
+        -   the latter is imprecise.
+
+### London bike hire key information
+
+-   You can [**hire bikes using London's public cycle hire scheme**]{.underline}, Santander Cycles.
+-   Riders will find [800 docking stations and 12,000 bikes]{style="color:blue"} to hire around London.
+
+```{r}
+
+plot(
+
+  st_geometry(cycle_hire),
+  col = "blue",
+  main = "London Cycle points: official-blue, OpenStreetMap-red")
+
+plot(
+  
+  st_geometry(cycle_hire_osm),
+  add = TRUE,
+  pch = 3,
+  col = "red")
+
+```
+
+-   We can check if any points are the same:
+
+    -   `any`: [given a set of logical vectors, is at least one of the values true?]{style="color:blue"}
+
+```{r}
+
+st_touches(
+  cycle_hire,
+  cycle_hire_osm,
+  sparse = FALSE) %>% 
+
+  any()
+
+```
+
+<div>
+
+**THE TASK AT HAND**
+
+-   Imagine that we need to [join the **capacity variable**]{style="color:blue"} in `cycle_hire_osm` onto the [**official 'target' data**]{style="color:red"} contained in `cycle_hire`.
+    -   **This is when a non-overlapping join is needed**.
+-   The simplest method is to use the topological operator **`st_is_within_distance()`**
+    -   [use a threshold distance of 20 m.]{style="color:red"}
+    -   [that is, assume that if two points, belonging each to a different dataset, are close enough, then they speak about the same spot]{.underline}.
+
+</div>
+
+```{r}
+head(cycle_hire)
+```
+
+```{r}
+
+head(cycle_hire_osm)
+```
+
+-   How to retrieve the values associated with the respective `cycle_hire_osm` points?
+-   The solution is again with `st_join()`.
+
+```{r}
+
+aux = st_join(
+  
+  cycle_hire, # the left_object
+              
+  select(cycle_hire_osm,capacity), # the right object with capacity and geometry
+              
+  join = st_is_within_distance, # the spatial predicate.
+            
+  dist = 20 # a parameter of the predicate
+  
+  )
+
+nrow(cycle_hire) < nrow(aux) # if true, some cycle_hire rows got duplicated.
+                             # some stations matched several points. 
+
+head(aux)
+
+```
+
+-   Note that the number of rows in the joined result is greater than the target.
+-   **This is because some cycle hire stations in cycle_hire have multiple matches in** `cycle_hire_osm`.
+    -   [**our method generated multiple candidate points to be coupled with the official data.**]{style="color:magenta"}
+-   [Use NON-SPATIAL [aggregation methods]{.underline}:]{style="color:maroon"}
+    -   [Take the capacity mean of the candidates and assign that to the corresponding point in the official data.]{style="color:maroon"}
+
+```{r}
+
+aux = aux %>% 
+  
+  group_by(id) %>% # this is by station
+  
+  summarize(
+    
+    capacity_mean = mean(capacity) # take the average of the associated capacities!
+    
+    )
+
+nrow(aux) == nrow(cycle_hire)
+#> [1] TRUE
+```
+
+```{r}
+
+plot(
+  
+  cycle_hire_osm["capacity"],
+  
+  main="actual capacity"
+  
+  )
+```
+
+```{r}
+
+plot(
+  
+  aux["capacity_mean"],
+  
+  main= "estimated capacity"
+  
+  )
+
+```
+
+------------------------------------------------------------------------
+
+## [[Spatial Aggregation]{.underline}]{style="color:Violet"}
+
+-   Spatial data aggregation **condenses data**!
+
+-   Consider New Zealand:
+
+    -   find out [[the average height of high points in each region]{.underline}]{style="color:blue"}
+
+    <div>
+
+    -   In other words...
+
+    -   Show the average value of features in `nz_height` within each of New Zealand's 16 regions.
+
+    </div>
+
+-   [The code below says:]{style="color:blue"}
+
+    -   [*from `nz_height`, tell me what elements intersect* `nz`]{style="color:purple"}
+
+```{r}
+
+nz_agg2 = st_join(
+  
+  x = __, # nz contains the regions' geographies
+  
+  y = __, # nz_height contains the mountains.
+  
+  join = __ # here we have the spatial predicate.
+  
+  )
+
+# we have added the elevation column to the regions.
+# some regions have been repeated to accomodate all of their mountains.
+
+glimpse(nz_agg2)
+
+```
+
+-   [The code below aggregates `nz_agg2`]{style="color:blue"}
+
+```{r}
+
+nz_agg2 = nz_agg2 %>%
+  
+  group_by(Name) %>%
+  
+  summarize(
+    
+    elevation = mean(elevation, na.rm = TRUE)
+    
+    ) 
+  
+head(nz_agg2)
+
+```
+
+```{r}
+
+tmap::tm_shape(nz) +
+  tmap::tm_borders() +
+  tmap::tm_shape(nz_agg2) +
+  tmap::tm_polygons("elevation")
+
+library(ggspatial)
+
+ggplot(data = nz) +
+  geom_sf(data = nz) +
+  geom_sf(data = nz_agg2, aes(fill = elevation)) +
+  scale_fill_viridis_c(option = "plasma") +
+  theme(
+  panel.background = element_rect(fill = "lightblue",
+                                colour = "lightblue",
+                                size = 0.5, linetype = "solid"))
+
+
+```
+
+<div>
+
+**The resulting `nz_agg` objects have the same geometry as the aggregating object `nz` but with a new column summarizing the values of `x` in each region using the function `mean()`**
+
+\- It is a left-join.
+
+</div>
+
+------------------------------------------------------------------------
+
+### [Joining incongruent layers]{style="color:darkgreen"}
+
+<div>
+
+-   **Spatial [[CONGRUENCE]{.underline}]{style="color:darkorange"}**:
+
+    -   when you can construct **larger entities** from **smaller ones**.
+
+    ::: {style="color:blue"}
+    -   States are formed by municipalities.
+
+    -   Countries are formed by states.
+
+    -   Continents are formed by countries.
+    :::
+
+------------------------------------------------------------------------
+
+-   **Incongruent objects**:
+
+    -   ocurs when **smaller entities** [do not]{.underline} **share limits** with the **larger objects**.
+    -   [Problematic for spatial aggregation]{style="color:red"}
+
+</div>
+
+![](aggregation.png){width="517"}
+
+### [[**Potential Solution: Aerial Interpolation**]{.underline}]{style="color:blue"}
+
+Think of larger area as a state.
+
+[Think of a smaller area as plantations for which we have their output.]{style="color:green"}
+
+<div>
+
+1.  Take the [portions of the smaller areas enclosed in the larger one]{style="color:red"}.
+2.  Measure in [% terms]{style="color:blue"}, [how much they cover of the larger area.]{.underline}
+3.  Form a [**weighted average of the plantations' output**]{style="color: darkgreen"}
+
+The above will give you an estimate of a state agricultural output.
+
+</div>
+
+[**Let's try out an exercise.**]{.underline}
+
+<div>
+
+1.  Observe the dataset `incongruent`
+    -   [colored polygons with black borders in the right panel]{style="color:green"}
+2.  Observe the data set `aggregating_zones`
+    -   [Two larger polygons]{style="color:green"}
+3.  Assume that the [value column of `incongruent`]{style="color:blue"} refers to the [[total regional income]{.underline}.]{style="color:purple"}
+    -   [How can we ***transfer** the values* of the [*underlying nine spatial polygons*]{.underline} into the [two polygons]{.underline} of *aggregating_zones*?]{style="color:darkgreen"}
+
+</div>
+
+```{r}
+
+
+ggplot() +
+  
+  geom_sf(
+    
+    data = incongruent # the smaller polygons
+    
+    ) +
+  
+  geom_sf(
+    
+    data = aggregating_zones, # the two larger polygons
+    
+    alpha = 0.5,  # transparency
+    
+    col = "grey",
+    
+    aes(
+      
+      fill = as.factor(geo_code) # fill color assigned by geo_code.
+      
+      )
+    
+    )
+
+
+```
+
+### [Area weighted spatial interpolation]{style="color:green"}
+
+-   [**Transfers values from**]{style="color:magenta"} the `incongruent` object [**to a new column**]{style="color:magenta"} in `aggregating_zones`
+    -   The [transferring]{style="color:red"} is done [in proportion with the area of overlap]{.underline}:
+
+        -   **We create a set of weights**
+
+        -   [The larger the spatial intersection, the larger the weight.]{style="color:red"}
+
+        -   This is implemented with `st_interpolate_aw()`
+
+[**SYNTAX**]{.underline}
+
+-   The code below reads:
+
+    -   take the **income** values from the **smaller regions** to [estimate the income in the larger regions]{style="color:blue"}.
+    -   The [overlapping pieces]{style="color:blue"} between the [smaller and larger polygons]{style="color:red"}, taken as [**percentages**]{.underline} of the latter, give the [**weights**]{.underline}.
+
+```{r}
+
+inc_val = incongruent %>% 
+  
+  select(value) # keep only the values to be transferred
+
+agg_aw = st_interpolate_aw(
+  
+  x = __, # smaller pieces
+  
+  to = __, # taget (larger) units. 
+  
+  ext = TRUE # Extensive or Intensive (more in a minute)
+  
+  )
+
+
+agg_aw
+
+```
+
+```{r}
+plot(inc_val)
+
+```
+
+```{r}
+
+plot(agg_aw)
+
+```
+
+<div>
+
+## Extensive vs intensive variables.
+
+-   Total income is a so-called **spatially extensive** variable
+
+    -   [*it increases with area*]{style="color:blue"}
+
+    ```{=html}
+    <!-- -->
+    ```
+    -   Our aggregating method assumes:
+
+        [income is **evenly distributed** across the **smaller zones**]{style="color:red"}.
+
+        -   [for example 1 squared meter equates 100 dollars]{style="color:green"}
+
+        -   [then, 10 squared meter equates 1k dollars]{style="color:green"}
+
+\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_
+
+-   This would be different for **spatially intensive** variables such as [income *per capita* or percentages.]{style="color:blue"}
+    -   these do not ([**necessarily**]{style="color:red"}) increase as the area increases.
+
+        -   [**It is safer to take simple averages here!**]{style="color:magenta"}
+
+\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\--
+
+-   `st_interpolate_aw()` works equally with spatially intensive variables
+    -   **extensive parameter** to FALSE
+        -   uses a **simple** **average**.
+
+        -   OTHERWISE: takes a **weighted-sum** function when doing the aggregation.
+
+</div>
+
+------------------------------------------------------------------------
+
+## [Distance relations]{style="color:green"}
+
+-   The distance between two objects is calculated with the [**`st_distance()`**]{style="color:blue"} function.
+
+-   Find the distance between:
+
+    -   the highest point in **New Zealand.**
+
+    -   and the geographic centroid of the **Canterbury region**.
+
+```{r}
+
+# with respect to elevation,
+# take the top 1 observation.
+
+nz_heighest = nz_height %>%
+  
+  ___(
+    
+    n = 1,
+    
+    order_by = elevation
+    
+    )
+
+canterbury_centroid = st_centroid(canterbury)
+
+st_distance(
+  
+  nz_heighest, # the highest peak
+  
+  canterbury_centroid # the canterbury centroid.
+  
+  )
+
+
+```
+
+-   The output of `st_distance` :
+
+    -   [A distance matrix describing all combinations of features in objects x and y]{style="color:blue"}.
+
+-   Find the distances between:
+
+    -   [the first three features in `nz_height`]{style="color:darkorange"}
+
+    -   [and the **Otago** and **Canterbury** regions of New Zealand.]{style="color:darkorange"}
+
+```{r}
+cant_ot = filter(
+  
+  nz,
+  
+  Name %in% c("Canterbury","Otago")
+  
+  )
+
+st_distance(
+  
+  nz_height[1:3, ], # select the first three rows: 1:3
+  
+  cant_ot
+  
+  )
+```
+
+-   Note that the distance between the second and third features in `nz_height` and the second feature in `cant_ot` is zero.
+
+-   This demonstrates the fact that distances between points and polygons refer to the distance **to any part of the polygon**
+
+-   [The second and third points in nz_height are in Otago, which can be verified by plotting them:]{style="color:blue"}
+
+```{r}
+
+ggplot() +
+  geom_sf(data = st_geometry(cant_ot)[2]) +
+  geom_sf(data = st_geometry(nz_height)[2:3],shape = 14, col = "blue", size = 4)
+
+```
+
+------------------------------------------------------------------------
+
+## Practice:
+
+-   First let's watch some videos on Mexico's Conquest.
+
+    [Colonial Mexico](https://www.youtube.com/watch?v=V8vsNprk4vc)
+
+    [Labor System in Colonial Mexico](https://www.youtube.com/watch?v=f1h-9W2Snik)
+
+-   We want to know if the [***prehispanic districts***]{style="color:blue"} with more villages, ended up containing larger numbers of **Spanish towns** after the Conquest.
+
+-   This amounts to using prehispanic settlements to predict conquistadors' settlements.
+
+```{r}
+
+
+load(here("data","mex_historic.RData"))
+
+
+mex = world %>% 
+  filter(name_long == "Mexico")
+
+ggplot() + 
+  geom_sf(data = mex) + 
+  geom_sf(data = prehisp_poly) + 
+  geom_sf(data = prehisp_points)
+
+ggplot() + 
+  geom_sf(data = prehisp_poly) + 
+  geom_sf(data = prehisp_points)
+
+ggplot() + 
+  geom_sf(data = prehisp_poly) + 
+  geom_sf(data = colonial_points)
+  
+
+```
+
+### Instructions:
+
+1.  Find the prehispanic and colonial points inside each prehispanic polygon and count them.
+
+2.  Use `ggplot` to produce a [scatter plot]{style="color:blue"} where the [x-axis represents the number of prehispanic towns]{style="color:red"}, and the [y-axis refers to the number of colonial settlements]{style="color:red"}.
+
+    <div>
+
+    -   The code for the plot should look like this:
+
+        `ggplot(data = your_joined_data,`
+
+        `aes(x = prehisp_towns, y =  colonial_towns))  +`
+
+        `geom_point() +`
+
+        `geom_smooth(method='lm')`
+
+    </div>
+
+**QUIZ!**
+
+-   Go to SUCOURSE and complete the code. There are three questions!
+
+```{r}
+
+# QUESTION 1
+
+# Let's create the dataset: prehispanic polygons-colonial points
+
+prehisp_poly_col_p =  prehisp_poly # we takethe polygons as the x-object
+  
+    # we preserve the name
+  
+   # the x object is inherited through the pipe
+        
+    # the y object is the set of colonial points
+           
+           # we want to preserve the names of the colonial points.
+           
+       
+     # the predicate must inquire: are y contained in x?
+    
+ 
+  
+#------------------------------------------------#
+
+# QUESTION 2
+  
+  # take prehisp_poly_col_p
+  
+ # group it by Name.
+  
+# count the number of colonial towns per polygon
+    
+  
+#------------------------------------------------#
+
+# Now we need to join the prehispanic points to thei corresponding polygons.
+
+# the predicate must inquire: are y contained in x?
+    
+# Let's group again by polygon.
+  
+                                  # count the number of towns per polygon.
+                                  # notice we replaced summarise with mutate.
+                                  # This presents the same number of total prehispanic
+                                  # towns across repeated prehispanic polygons 
+
+```
+
+------------------------------------------------------------------------
